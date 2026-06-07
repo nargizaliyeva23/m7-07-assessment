@@ -1,0 +1,32 @@
+groups:
+  - name: mlops-recommendation-engine-alerts
+    rules:
+      # Multi-Window, Multi-Burn-Rate Alerting Strategy
+      - alert: HighAvailabilityBurnRate1Hour
+        expr: sum(rate(http_requests_total{status=~"5.."}[1h])) / sum(rate(http_requests_total[1h])) > 0.144
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Inference Engine consuming Error Budget rapidly."
+          description: "Current error consumption speed is exhausting the 30-day allocation pool inside 1 hour."
+
+      # Model Immutability Structural Mismatch Protection Line
+      - alert: ModelVersionRuntimeMismatchDetected
+        expr: count(count(http_requests_total) by (X_Model_Version)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Asymmetric cluster active versions."
+          description: "More than one model weight version hash code is reporting metrics back from active production."
+
+      # Data Quality Degradation Alerting Line
+      - alert: FeatureDriftLimitBreached
+        expr: mlops_feature_drift_p_value{feature="user_clicks_30d"} < 0.01
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Input Feature distribution drift alert."
+          description: "Statistical checks indicate active runtime payloads have drifted fundamentally from base parameters."

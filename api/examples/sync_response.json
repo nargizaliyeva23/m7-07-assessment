@@ -1,0 +1,11 @@
+{
+  "recommended_items": [
+    "prod_7712",
+    "prod_9301",
+    "prod_0041"
+  ],
+  "model_metadata": {
+    "active_version": "v2.1.0-onnx",
+    "is_fallback": false
+  }
+}

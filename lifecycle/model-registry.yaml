@@ -1,0 +1,42 @@
+---
+
+### `/lifecycle/model-registry.yaml`
+```yaml
+apiVersion: mlflow.org/v1alpha1
+kind: ModelRegistrySpecification
+metadata:
+  name: recommendation-engine-registry
+  namespace: ml-governance
+spec:
+  model_name: prod_retail_recommendation_engine
+  allowed_frameworks:
+    - ONNX
+  governance_rules:
+    enforce_lineage: true
+    require_signature: true
+    immutable_tags: true
+
+  stages:
+    - stage: Staging
+      automated_gates:
+        - check: SchemaValidation
+          criteria: "Matches Input: [user_id: string, last_30d_clicks: float32[]]"
+        - check: OfflineEvaluation
+          metrics:
+            - AUC >= 0.78
+            - NDCG@10 >= 0.65
+        - check: VulnerabilityScan
+          criteria: "Trivy Scan CVE Critical == 0"
+      approvers:
+        - ml-platform-leads@retailcorp.com
+
+    - stage: Production
+      automated_gates:
+        - check: ShadowTrafficValidation
+          duration: 48h
+          performance_criteria:
+            - error_rate <= 0.01%
+            - p95_latency <= 45ms
+      approvers:
+        - lead-data-scientist@retailcorp.com
+        - director-ops@retailcorp.com

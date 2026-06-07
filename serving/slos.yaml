@@ -1,0 +1,16 @@
+version: service/v1alpha
+metadata:
+  name: recommendation-inference-slo
+spec:
+  service_level_indicators:
+    - name: availability
+      metric_source: prometheus
+      query: "sum(rate(http_requests_total{status=~'2..|4..'}[5m])) / sum(rate(http_requests_total[5m]))"
+      objective: 99.9%
+      window: 30d
+
+    - name: latency_p95
+      metric_source: prometheus
+      query: "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))"
+      objective: <= 0.120
+      window: 30d
