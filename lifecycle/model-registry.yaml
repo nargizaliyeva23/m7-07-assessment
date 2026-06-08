@@ -1,42 +1,45 @@
----
+apiVersion: mlflow/v1alpha1
+kind: ModelRegistrySpec
+modelName: "retail-recommendation-vector-model"
+description: "Two-tower neural network for personalized in-app product recommendations based on 30-day user interaction vectors."
 
-### `/lifecycle/model-registry.yaml`
-```yaml
-apiVersion: mlflow.org/v1alpha1
-kind: ModelRegistrySpecification
-metadata:
-  name: recommendation-engine-registry
-  namespace: ml-governance
-spec:
-  model_name: prod_retail_recommendation_engine
-  allowed_frameworks:
-    - ONNX
-  governance_rules:
-    enforce_lineage: true
-    require_signature: true
-    immutable_tags: true
+metaData:
+  project: "personalized-b2c-retail-recommendations"
+  owner_team: "recommender-core-ds"
+  business_criticality: "Tier-1" # Direct impact on home-screen load revenue
 
-  stages:
-    - stage: Staging
-      automated_gates:
-        - check: SchemaValidation
-          criteria: "Matches Input: [user_id: string, last_30d_clicks: float32[]]"
-        - check: OfflineEvaluation
-          metrics:
-            - AUC >= 0.78
-            - NDCG@10 >= 0.65
-        - check: VulnerabilityScan
-          criteria: "Trivy Scan CVE Critical == 0"
-      approvers:
-        - ml-platform-leads@retailcorp.com
+lifecycle_stages:
+  - stage: "Staging"
+    requirements:
+      - offline_evaluation_metrics:
+          ndcg_at_10: ">= 0.65"
+          recall_at_10: ">= 0.40"
+      - data_lineage:
+          training_dataset_uri: "s3://retail-mlops-feature-store/offline/train_v2_2026-06.parquet"
+          features_used: ["user_30d_clicks_vector", "user_30d_purchases_vector", "product_category_embeddings"]
+      - security_scans:
+          pickle_vulnerability_scan: "PASSED (No arbitrary code execution detected via Checkmarx/Trivy)"
+          dependencies_vulnerability_scan: "PASSED (0 Critical, 0 High)"
+    approvers:
+      - role: "Lead Data Scientist"
+        identity: "lead-ds-approver@company.internal"
+      - role: "MLOps Engineer"
+        identity: "mlops-platform-gatekeeper@company.internal"
 
-    - stage: Production
-      automated_gates:
-        - check: ShadowTrafficValidation
-          duration: 48h
-          performance_criteria:
-            - error_rate <= 0.01%
-            - p95_latency <= 45ms
-      approvers:
-        - lead-data-scientist@retailcorp.com
-        - director-ops@retailcorp.com
+  - stage: "Production"
+    requirements:
+      - canary_deployment_validation:
+          duration: "2 hours"
+          max_error_rate: "< 0.5%"
+          p95_latency_gate: "< 120ms"
+      - fallback_strategy:
+          mechanism: "Popular items cached in Redis for cold-start and circuit-breaker conditions"
+    approvers:
+      - role: "Head of AI / Product Owner"
+        identity: "recommender-po@company.internal"
+
+lineage_tracking:
+  git_commit: "https://github.com/nargizaliyeva23/m7-07-assessment/commit/8b3f91a"
+  training_pipeline_run_id: "mlflow-run-uuid-8891-44af"
+  framework: "PyTorch 2.3.0"
+  model_binary_size_mb: 450

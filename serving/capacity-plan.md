@@ -1,17 +1,28 @@
-# Capacity Plan and Resource Allocation Math
+# Infrastructure Capacity Plan: Scenario X
 
-## Input Operational Specifications
-* **Peak RPS Target:** 800 Requests Per Second
-* **Total Allowed System Latency:** 120 ms
-* **Allocated Container Inference Target (SLO Limit):** 80 ms
+## 1. Core Core Traffic Assumptions & Metrics
+* **Peak Throughput:** 800 Requests Per Second (RPS)
+* **Target p95 Latency Budget (End-to-End):** 120 ms
+  * *Internal Model Inference Budget:* 40 ms
+  * *Redis Feature Retrieval Budget:* 15 ms
+  * *Network & Routing Overhead:* 65 ms
+* **Model Footprint:** 450 MB (RAM-da uncompressed halda ~1.2 GB yer tutur).
 
-## Compute Instance Profiles (AWS ECS Fargate Instance Target)
-Each container replica runs a Python Uvicorn engine configured with **4 parallel worker processes**. 
-* **Tested Single-Worker Throughput:** ~25 RPS at an average internal latency of 45ms.
-* **Total Capacity Per Replica Container:** $25 \text{ RPS} \times 4 \text{ workers} = 100 \text{ RPS}$.
+## 2. Resource Utilization & Replica Math
+Tutaq ki, 1 Pod (Replica) daxilində modelimiz single-thread ilə 1 sorğunu ortalama **40 ms** (0.04 saniyə) ərzində emal edir.
 
-## Required Production Fleet Scaling Calculation
-To handle the absolute maximum peak load of 800 RPS securely without performance drops:
-$$\text{Required Minimum Replicas} = \frac{\text{Peak RPS}}{\text{Capacity Per Replica}} = \frac{800}{100} = 8 \text{ Replicas}$$
+$$\text{Capacity per Pod} = \frac{1 \text{ saniyə}}{0.04 \text{ saniyə/sorğu}} = 25 \text{ RPS}$$
 
-We will provision a deployment configuration with a minimum baseline instance count of **8 replicas**, with autoscaling triggers configured to expand up to **12 replicas** if system-wide CPU utilization crosses 70%.
+Təhlükəsizlik və resurs piklərini idarə etmək üçün CPU saturasiyasını maksimum 70% səviyyəsində saxlayırıq (Safety Factor = 0.7):
+
+$$\text{Effective Capacity per Pod} = 25 \text{ RPS} \times 0.7 = 17.5 \text{ RPS}$$
+
+800 RPS pik yükü qarşılamaq üçün lazım olan minimal Pod (Replica) sayı:
+
+$$\text{Required Replicas} = \frac{800 \text{ RPS}}{17.5 \text{ RPS/Pod}} \approx 45.7 \rightarrow \textbf{46 Replicas}$$
+
+## 3. Hardware Recommendation & Cost Estimate (AWS)
+* **Compute Choice:** `c6i.xlarge` instances (4 vCPU, 8 GiB RAM).
+* **Pod Allocation:** Hər bir Pod üçün `limits` olaraq `1 vCPU` və `2 GiB RAM` təyin edilir. Bir instance-da 3 Pod yerləşdirilir.
+* **Total Nodes Needed:** $46 \text{ Pods} / 3 \approx 16 \text{ Nodes}$.
+* **Monthly Cost Estimate:** 16 x `c6i.xlarge` ($0.17x/hour) $\approx \$1,980/\text{month}$.
