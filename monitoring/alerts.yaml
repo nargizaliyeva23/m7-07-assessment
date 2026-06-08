@@ -1,32 +1,26 @@
 groups:
-  - name: mlops-recommendation-engine-alerts
+  - name: recommendation-service-alerts
     rules:
-      # Multi-Window, Multi-Burn-Rate Alerting Strategy
-      - alert: HighAvailabilityBurnRate1Hour
-        expr: sum(rate(http_requests_total{status=~"5.."}[1h])) / sum(rate(http_requests_total[1h])) > 0.144
+      - alert: ModelVersionMismatchDetected
+        expr: count by (v1_2_0) (http_requests_total{model_version!="v1.2.0"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical Alert: Traffic routed to incorrect or unapproved model version!"
+
+      - alert: HighInferenceLatencyServiceBreach
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.080
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Inference Engine consuming Error Budget rapidly."
-          description: "Current error consumption speed is exhausting the 30-day allocation pool inside 1 hour."
+          summary: "Inference Latency Target Exceeded: p95 latency is higher than the allocated 80ms container budget."
 
-      # Model Immutability Structural Mismatch Protection Line
-      - alert: ModelVersionRuntimeMismatchDetected
-        expr: count(count(http_requests_total) by (X_Model_Version)) > 1
+      - alert: ErrorBudgetBurnRateHigh
+        expr: rate(http_requests_total{status=~"5.."}[1h]) / rate(http_requests_total[1h]) > 0.01
         for: 5m
         labels:
-          severity: warning
+          severity: page
         annotations:
-          summary: "Asymmetric cluster active versions."
-          description: "More than one model weight version hash code is reporting metrics back from active production."
-
-      # Data Quality Degradation Alerting Line
-      - alert: FeatureDriftLimitBreached
-        expr: mlops_feature_drift_p_value{feature="user_clicks_30d"} < 0.01
-        for: 1h
-        labels:
-          severity: warning
-        annotations:
-          summary: "Input Feature distribution drift alert."
-          description: "Statistical checks indicate active runtime payloads have drifted fundamentally from base parameters."
+          summary: "Error Budget Burn Rate Warning: More than 1% failure rate detected over the last hour."

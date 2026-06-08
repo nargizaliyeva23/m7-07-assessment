@@ -1,14 +1,14 @@
-# Architecture Decision Record 0002: Real-time Feature Storage Mechanism
+# ADR 0001: Selection of Redis as Online Feature Store for Low-Latency Features
 
 ## Status
 Accepted
 
 ## Context
-Aggregating 30 days of raw user clickstream logs on every home-screen execution is computationally impossible within a 120 ms latency boundary. Features must be aggregated asynchronously and served via an operational datastore supporting thousands of parallel lookups.
+Scenario X requires historical features (30 days of user browsing and purchases) to compute recommendations dynamically on every home-screen load. With an end-to-end p95 latency budget of 120ms, reading raw historical logs directly from the primary relational database or data warehouse during the request cycle is impossible.
 
 ## Decision
-We implement an **In-Memory Redis Cluster as our Online Feature Store Layer**.
+We will use an in-memory Redis cluster paired with Feast as our online feature store. All user profile vectors and aggregated 30-day behavioral sequences will be pre-computed and synchronized daily/hourly into Redis.
 
 ## Consequences
-* **Positive:** Delivers sub-4ms feature lookup execution for user historical profile vectors at 800+ RPS.
-* **Negative:** High memory footprints across the cluster scale linearly with active B2C user counts. To mitigate financial burn, we enforce a strict 30-day Time-To-Live (TTL) eviction policy on all user feature keys.
+* **Positive:** Network read latency drops to <15ms, giving the model service plenty of headroom to infer within its 80ms allocation.
+* **Negative:** Increased infrastructure costs due to maintaining an in-memory database cluster.
